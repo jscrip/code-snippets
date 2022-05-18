@@ -160,7 +160,7 @@ var collection = [];
 				Using the network request tab, I found the url that requests the offer overlay and
 				now have a template for requesting offers for any product, given the asin
 			*/
-      const getPrice = (data) => {
+      const getPrice = (id,data) => {
         var price = data.find(d => d.classList == "a-offscreen");
         price = price
           ? price.text.replace(/[\$,]/gim, "")
@@ -206,12 +206,12 @@ var collection = [];
 			const removeUselessElements = el => options.exactMatchStop.some(t => el.text != t);
 			/*parseItemData() converts product data from HTML to JSON format*/
       const parseItemData = (id,data) => {
-				console.log({parseItemData:{id,data}});
+				//console.log({parseItemData:{id,data}});
         try {
           return {
             asin: id,
             title: findBy(data, "nodeName", "H2", "text"),
-            price: getPrice(data),
+            price: getPrice(id,data),
             img: findBy(data, "nodeName", "IMG", "el.src"),
             url: findBy(data, "nodeName", "A", "el.href"),
             rating: getRating(data),
@@ -219,6 +219,8 @@ var collection = [];
             lastUpdate
           }
         } catch (e) {
+					console.log({errorParseItemData:e});
+
           return false;
         };
       };
@@ -228,18 +230,23 @@ var collection = [];
 				//asin = amazon's product id
 				//get asin from the dataset attributes on the product element
 				var id = item.dataset.asin;
+				if(!id){
+					id = item.attributes.getNamedItem("data-asin").value;
+				}
 				//if the asin is not already known, then get it
         if (!collection.find(c => c.asin == id)) {
 					//get all HTML elements related to the product and apply a pre-filter
           var results = getProductData(item);
-					console.log({results})
+				//	console.log({results})
 					//filter the list again with (options.exactMatchStop & options.subStringMatchStop)
           var itemData = results.data.filter(removeUselessElements);
-					console.log({itemData})
+				//	console.log({itemData})
 					//convert the HTML to JSON format
 					var data = parseItemData(id,itemData);
 					if(data){
 						data = {...data, ...options.metaData};
+					}else{
+							console.log({item,dataset:item.dataset});
 					}
           return data;
         }
@@ -252,7 +259,7 @@ var collection = [];
 			}
 			}
 			var processProductData = processProduct(item);
-			console.log({processProductData});
+			//console.log({processProductData});
       return processProductData;
 
     };
@@ -262,7 +269,7 @@ var collection = [];
 			//select the elements that contain the product information, excluding ads
       var products = doc.querySelectorAll(`.sg-row [class*="s-asin"]:not(.AdHolder)`);
       for await(let productHTML of products) {
-				console.log({productHTML})
+				//console.log({productHTML})
 				//iterate over each product listing in the SERP
         var productInfo = scrapeProduct(productHTML);
 
