@@ -1,13 +1,20 @@
 var collection = [];
 (() => {
-  //application settings, such as dependencies, limits, and collected data
+	//application settings, such as dependencies, limits, and collected data
+	var today = new Date();
   var options = {
     scripts: ["https://d3js.org/d3.v6.min.js"],
     data: collection,
     maxPages: 5,
-    pagesCrawled: 0
+    pagesCrawled: 0,
+		date:`${today.getYear()}-${today.getMonth()}-${today.getDate()}:${today.getHours()}`,
+		metaData: {
+			query:document.querySelector(".nav-search-field input").value,
+			category:document.querySelector(`#searchDropdownBox option[selected="selected"]`).innerText,
+			categoryAlias:document.querySelector(`#searchDropdownBox option[selected="selected"]`).attributes.getNamedItem("data-root-alias").value,
+		}
   };
-  //A wrapper function that makes it easy to download JSON files as CSV, all from the client-side
+	//A wrapper function that makes it easy to download JSON files as CSV, all from the client-side
   const downloadCSV = (data, fileName) => {
     var d = document;
     var a = d.createElement('a');
@@ -18,7 +25,7 @@ var collection = [];
     d.body.removeChild(a);
   };
   const delay = ms => new Promise(r => setTimeout(r, ms));
-  //getDoc will fetch, parse, and return an HTML document without altering the page where the code is running
+	//getDoc will fetch, parse, and return an HTML document without altering the page where the code is running
   const getDoc = async (url) => {
     try {
       let res = await fetch(url);
@@ -30,15 +37,15 @@ var collection = [];
     }
   };
   const processDoc = async (doc) => {
-    //getProductData() is the first stage in converting the HTML into JSON.
-    //All elements within the product listing container are selected, then filters are used to narrow down the number of elements used in the next step.
+		//getProductData() is the first stage in converting the HTML into JSON.
+		//All elements within the product listing container are selected, then filters are used to narrow down the number of elements used in the next step.
     const getProductData = (item) => {
-      /* this script was part of the discovery process.
+			/* this script was part of the discovery process.
 			The purpose was to review all descendants to find which elements contained product information
 			*/
-      //get all elements within product listing, then filter them to reduce the number of useless results.
+			//get all elements within product listing, then filter them to reduce the number of useless results.
       return [...item.querySelectorAll("*")].reduce((results, el) => {
-        //add elements that meet criteria
+				//add elements that meet criteria
         var addEl = (el) => {
           var dataSet = Object.entries(el.dataset);
           dataSet = dataSet.length
@@ -62,13 +69,12 @@ var collection = [];
             });
           }
         }
-        //do not add elements that don't meet criteria
+				//do not add elements that don't meet criteria
         var skipEl = (el) => {
           results.skipped.push(el);
         }
-        //if the element contains text, is an image, or has data attributes, then keep it, otherwise skip it(el.innerText && el.innerText.trim().length) || el.nodeName == "IMG" || Object.keys(el.dataset).length
-          ? addEl(el)
-          : skipEl(el);
+				/*if the element contains text, is an image, or has data attributes, then keep it, otherwise skip it*/
+				(el.innerText && el.innerText.trim().length) || el.nodeName == "IMG" || Object.keys(el.dataset).length ? addEl(el) : skipEl(el);
         return results;
       }, {
         skipped: [],
@@ -93,29 +99,29 @@ var collection = [];
         return false;
       }
     };
-    //getProductPage can do more than price, but for now, I'm just access product pages when a price can't be found in the search results
+		//getProductPage can do more than price, but for now, I'm just access product pages when a price can't be found in the search results
     const getProductPage = async (url) => {
-      const getPriceFromProdPage = (doc) => {
-        var price = doc.querySelector(`[class*="a-price"] .a-offscreen`);
+			const getPriceFromProdPage = (doc) => {
+				var price = doc.querySelector(`[class*="a-price"] .a-offscreen`);
         price = price && price.innerText.length
           ? + price.innerText.replace(/[\$,]/gim, "")
           : false;
         price = isNaN(price) || price < 1
           ? false
           : price;
-        return price;
-      };
+				return price;
+			};
       try {
         var doc = await getDoc(url);
         var price = getPriceFromProdPage(doc);
-        //add more properties from the product page here...
+				//add more properties from the product page here...
         return {price};
       } catch (e) {
         console.log({"getProductPage Error": e})
         return false;
       }
     };
-    /*findBy() is a lazy attempt at refactoring a bad process. The "data" variable is an array of HTML elements that are descendants of the product container
+		/*findBy() is a lazy attempt at refactoring a bad process. The "data" variable is an array of HTML elements that are descendants of the product container
 			"key" = the property name that will be searched. "value" = search value, "propKey" is usually "text" but can sometimes target other element attributes, such as href for anchor tags, aria labels, and dataset key/value pairs
 			when "el." is in the first part of the propKey, then a special condition is raised to acccess an attribute such as "el.href" or "el.src".
 		*/
@@ -126,14 +132,14 @@ var collection = [];
           ? data.find(d => d[key] == value)[propKey]
           : data.find(d => d[key] == value)
       : data.find(d => d[key] == value);
-    /*
+		/*
 			Currently scraping the following properties:
 				asin, title, price, rating, reviewCount
 		*/
     const scrapeProduct = (item) => {
-      /* add a timestamp to the data as it is collected so we can compare changes over time */
+			/*add a timestamp to the data as it is collected so we can compare changes over time*/
       let lastUpdate = new Date().toISOString();
-      /*getRating() gets the average product rating from the SERP.
+			/*getRating() gets the average product rating from the SERP.
 			finds the element containing the text "out of", intended to match cases like: "4.5 out of 5 stars")
 			There is likely a better method, but this works for now*/
       const getRating = (data) => {
@@ -145,7 +151,7 @@ var collection = [];
           ? + rating
           : false;
       };
-      /*The product price is more complicated to scrape than other details.
+			/*The product price is more complicated to scrape than other details.
 				Prices can be in 3 places:
 					1) The SERPs
 					2) the product page
@@ -163,7 +169,7 @@ var collection = [];
           ? + price
           : false;
         if (!price) {
-          //"Couldn't find pricing, checking product page... this could be expanded to capture more info from the product page, but as it stands, product pages are only scraped when a price could not be found in SERPs"
+					//"Couldn't find pricing, checking product page... this could be expanded to capture more info from the product page, but as it stands, product pages are only scraped when a price could not be found in SERPs"
           var productPageData = getProductPage(`https://www.amazon.com/dp/${id}`);
           price = productPageData.price;
         }
@@ -172,13 +178,13 @@ var collection = [];
 						 Requesting the offers view in ajax mode, which is usually triggered via click,
 						 but we are accessing it via fetch"
 					*/
-          var offerPageData = getOffers(id);
+					var offerPageData = getOffers(id);
           price = offerPageData.price;
         }
         //if we made it to this point without a price, the product is likely unavailable or amazon changed something that broke my collection method
         return price;
       };
-      /* find the link with "#customerReviews" hashtag to get the total review count */
+			/*find the link with "#customerReviews" hashtag to get the total review count*/
       const getReviewCount = (data) => {
         var reviews = data.find(d => d.nodeName == "A" && d.el.href && d.el.href.indexOf("#customerReviews") > -1);
         reviews = reviews
@@ -188,24 +194,19 @@ var collection = [];
           ? + reviews
           : 0;
       };
-      /*
+			/*
 			 This filter is probably no longer necessary, but this is leftover from combing through all the elements for each product listing.
 			 The idea is to eliminate some of the "noise" by filtering on properties that I know I'm not looking for.
 			 In this case, I was bombarded by elements containing the phrase, "Best Seller",
 			 so I filtered out those elements so I could review a shorter list
 			*/
-      options.exactMatchStop = ["Best Seller"];
-      options.subStringMatchStop = ["Bob Dole's Best Bargains"];
-      /* && options.subStringMatchStop.some(t => el.text.indexOf(t) == -1) */
-      const removeUselessElements = el => options.exactMatchStop.some(t => el.text != t);
-      /* parseItemData() converts product data from HTML to JSON format */
-      const parseItemData = (id, data) => {
-        console.log({
-          parseItemData: {
-            id,
-            data
-          }
-        });
+			options.exactMatchStop = ["Best Seller"];
+			options.subStringMatchStop = ["Bob Dole's Best Bargains"];
+			/* && options.subStringMatchStop.some(t => el.text.indexOf(t) == -1)*/
+			const removeUselessElements = el => options.exactMatchStop.some(t => el.text != t);
+			/*parseItemData() converts product data from HTML to JSON format*/
+      const parseItemData = (id,data) => {
+				console.log({parseItemData:{id,data}});
         try {
           return {
             asin: id,
@@ -221,58 +222,62 @@ var collection = [];
           return false;
         };
       };
-      //processProduct() converts the data from HTML to JSON
-      const processProduct = item => {
-        try {
-          //asin = amazon's product id
-          //get asin from the dataset attributes on the product element
-          var id = item.dataset.asin;
-          //if the asin is not already known, then get it
-          if (!collection.find(c => c.asin == id)) {
-            //get all HTML elements related to the product and apply a pre-filter
-            var results = getProductData(item);
-            console.log({results})
-            //filter the list again with (options.exactMatchStop & options.subStringMatchStop)
-            var itemData = results.data.filter(removeUselessElements);
-            console.log({itemData})
-            //convert the HTML to JSON format
-            return parseItemData(id, itemData);
-          }
-          //if the asin already exists, then skip it
-          console.log("Duplicate: Skipping " + id);
-          return false;
-        } catch (e) {
-          console.log({e});
-          return false;
+			//processProduct() converts the data from HTML to JSON
+			const processProduct = item => {
+				try {
+				//asin = amazon's product id
+				//get asin from the dataset attributes on the product element
+				var id = item.dataset.asin;
+				//if the asin is not already known, then get it
+        if (!collection.find(c => c.asin == id)) {
+					//get all HTML elements related to the product and apply a pre-filter
+          var results = getProductData(item);
+					console.log({results})
+					//filter the list again with (options.exactMatchStop & options.subStringMatchStop)
+          var itemData = results.data.filter(removeUselessElements);
+					console.log({itemData})
+					//convert the HTML to JSON format
+					var data = parseItemData(id,itemData);
+					if(data){
+						data = {...data, ...options.metaData};
+					}
+          return data;
         }
-      }
-      var processProductData = processProduct(item);
-      console.log({processProductData});
+				//if the asin already exists, then skip it
+        console.log("Duplicate: Skipping " + id);
+        return false;
+				} catch (e) {
+				console.log({e});
+				return false;
+			}
+			}
+			var processProductData = processProduct(item);
+			console.log({processProductData});
       return processProductData;
+
     };
-    //Get the list of products from the product search results page, and add product data to the collection
+		//Get the list of products from the product search results page, and add product data to the collection
     const getProducts = async (doc) => {
-      try {
-        //select the elements that contain the product information, excluding ads
-        var products = doc.querySelectorAll(`.sg-row [class*="s-asin"]:not(.AdHolder)`);
-        for await(let productHTML of products) {
-          console.log({productHTML})
-          //iterate over each product listing in the SERP
-          var productInfo = scrapeProduct(productHTML);
-          //if productInfo contains results, then add to the report that will be downloaded at the end
-          productInfo
-            ? collection.push(productInfo)
-            : console.log({productInfo});
-        }
-      } catch (e) {
-        console.log({e})
-      };
+			try {
+			//select the elements that contain the product information, excluding ads
+      var products = doc.querySelectorAll(`.sg-row [class*="s-asin"]:not(.AdHolder)`);
+      for await(let productHTML of products) {
+				console.log({productHTML})
+				//iterate over each product listing in the SERP
+        var productInfo = scrapeProduct(productHTML);
+
+				//if productInfo contains results, then add to the report that will be downloaded at the end
+        productInfo ? collection.push(productInfo) : console.log({productInfo});
+      }
+			} catch (e) {
+			console.log({e})
+			};
     };
     await getProducts(doc);
   };
-  const download = () => downloadCSV(options.data, "demo");
+  const download = () => downloadCSV(options.data, `Amazon-SERP-${options.date}-${options.metaData.category}-${options.metaData.query}`);
   const getPage = async (url) => {
-    //finds the next page to crawl, then calls getPage() recursively
+		//finds the next page to crawl, then calls getPage() recursively
     const nextPage = async (doc) => {
       try {
         var nextUrl = doc.querySelector(`[class*="s-pagination-next"]`).href;
@@ -284,35 +289,36 @@ var collection = [];
       };
     };
     try {
-      //if crawl limit is reached, download the product report and break the recursion
+			//if crawl limit is reached, download the product report and break the recursion
       if (options.pagesCrawled >= options.maxPages) {
         download();
         return "max reached";
       }
-      //otherwise, fetch the doc...
+			//otherwise, fetch the doc...
       var doc = await getDoc(url);
       try {
-        //and extract the product information.
+				//and extract the product information.
         await processDoc(doc);
       } catch (e) {
-        //catch the errors silently for processDoc to keep the crawler from stopping due to errors
-        //Error handling can be improved all around, but just making note of try/catch usage
-      };
-      //keep count of pagesCrawled, even failed attempts.
+				//catch the errors silently for processDoc to keep the crawler from stopping due to errors
+				//Error handling can be improved all around, but just making note of try/catch usage
+			};
+			//keep count of pagesCrawled, even failed attempts.
       options.pagesCrawled++;
-      //find the next page, then rinse and repeat
+			//find the next page, then rinse and repeat
       nextPage(doc);
     } catch (e) {
-      //if nextPage or any process within getPage() fails,
-      //then we likely ran out of pages to scrape, so download the product data
+			//if nextPage or any process within getPage() fails,
+			//then we likely ran out of pages to scrape, so download the product data
       download();
     };
   };
-  //Crawler starts at run() by scraping the first page of search results,
-  //then it fetches additional pages until it runs out or hits the threshold for page requests.
+	//Crawler starts at run() by scraping the first page of search results,
+	//then it fetches additional pages until it runs out or hits the threshold for page requests.
   const run = async () => {
     try {
-      //start the crawler by processing the current page, which should be the first page of product search results.
+			//start the crawler by processing the current page, which should be the first page of product search results.
+
       await processDoc(document);
     } catch (e) {
       console.log({e})
@@ -320,7 +326,7 @@ var collection = [];
     var url = document.querySelector(`[class*="s-pagination-next"]`).href;
     getPage(url);
   };
-  /* external library injection
+	/* external library injection
 		 Note: may require modifying the browsers security settings to work.
 		 For this script, I'm using D3.js to convert JSON to CSV.
 	*/
